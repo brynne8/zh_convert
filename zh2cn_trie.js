@@ -26,7 +26,7 @@ function addSingleConv(from, to) {
 }
 
 function addConversionData(data) {
-  for (const pair of zh2hans) {
+  for (const pair of data) {
     addSingleConv(pair[0], pair[1]);
   }
 }
@@ -95,10 +95,6 @@ function mergeGlobalRules(data, variant) {
 
 addConversionData(zh2hans);
 addConversionData(zh2cn);
-
-$('noteta').each((_, x) => {
-  mergeGlobalRules(JSON.parse(x.textContent), 'zh-cn');
-}).remove();
 
 function doConvert(str) {
   let cursor = 0;
@@ -171,16 +167,35 @@ function pickVariant(str, variant) {
   return ruleMap['default'] || '';
 }
 
+const htmlTagPattern = /<[^>]*>/g
+function convertNormal(str) {
+  const matches = str.matchAll(htmlTagPattern);
+  let matchEnd = 0;
+  const chunks = [];
+  for (const match of matches) {
+    chunks.push(doConvert(str.substring(matchEnd, match.index)));
+    chunks.push(match[0])
+    matchEnd = match.index + match[0].length;
+  }
+  chunks.push(doConvert(str.substring(matchEnd, str.length)));
+  
+  return chunks.join('');
+}
+
 function doMwConvert(str) {
+  str = str.replace(/\<noteta\>(.*?)\<\/noteta\>/gi, function(_, p1) {
+    mergeGlobalRules(JSON.parse(decodeEntities(p1)), 'zh-cn');
+    return '';
+  });
   const matches = str.matchAll(convPattern);
   let matchEnd = 0;
   const resList = [];
   for (const match of matches) {
-    resList.push(doConvert(str.substring(matchEnd, match.index)));
+    resList.push(convertNormal(str.substring(matchEnd, match.index)));
     resList.push(pickVariant(match[1], 'zh-cn'))
     matchEnd = match.index + match[0].length;
   }
-  resList.push(doConvert(str.substring(matchEnd, str.length)));
+  resList.push(convertNormal(str.substring(matchEnd, str.length)));
   
   return resList.join('')
 }
